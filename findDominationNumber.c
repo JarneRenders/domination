@@ -309,9 +309,12 @@ long long unsigned int *nOfCoveringsForDominationNumber) {
         return;
     }
 
-    //  Pruning criterium: if v is not yet in set and < lastAdded it cannot be
-    //  in set
-    for(int v = 0; v < lastAdded; v++) {
+    //  Pruning criterium: if a vertex is not yet in set and < lastAdded it
+    //  cannot be in set. Check if this holds for v and its neighbours.
+    forEach(v, includedVertices) {
+        if(v >= lastAdded) {
+            break;
+        }
         if(contains(currentSet, v)) {
             continue;
         }
