@@ -4,7 +4,7 @@ This repository contains a program created for the article "J. Renders, S. Tokun
 The program uses McKay's graph6 format to read and write graphs. See <http://users.cecs.anu.edu.au/~bdm/data/formats.txt>. As well as Brinkmann and Mckay's planar code format. The definition can be found in the `plantri` manual. See <https://users.cecs.anu.edu.au/~bdm/plantri/plantri-guide.txt>.
 
 ### Short manual
-This program can be used to determine the domination number of a given input graph. One can also count the number of minimal dominating sets and output graphs with a specific domination number. Moreover, the program contains methods for filtering graphs which satisfy certain conditions involving disjoint paths. In particular, the conditions of Lemma 2, Lemma 3 and Lemma 4 of the manuscript can be checked.   
+This program can be used to determine the domination number of a given input graph. One can also count the number of minimal dominating sets and output graphs with a specific domination number. Moreover, the program contains methods for filtering graphs which satisfy certain conditions involving disjoint paths. In particular, the conditions of Lemma 1, Lemma 2 and Lemma 3 of the manuscript can be checked.   
 
 This program supports graphs with less than 64 vertices.
 
@@ -18,9 +18,9 @@ Use `make clean` to remove the binary created in this way.
 
 All options can be found by executing `./findDominationNumber -h`.
 
-Usage: `./findDominationNumber [-2|-3|-4] [-c] [-d] [-o#] [-v] [-h]`
+Usage: `./findDominationNumber [-2|-3|-k#] [-c] [-d] [-o#] [-v] [-h]`
 
-By default this program computes the domination number of the input graphs. With `-o#` graphs with domination number `#` are output. When using either of `-2`, `-3` or `-4` the graphs which satisfy the conditions of Lemma 1, 2 and 3, respectively are output.
+By default this program computes the domination number of the input graphs. With `-o#` graphs with domination number `#` are output. When using either of `-2`, `-3` or `-k#` the graphs which satisfy the conditions of Lemma 1, 2 and 3, respectively are output.
 
 Graphs are read from stdin in graph6 format by default or in planar code format if `-d` is present. Graphs are sent to stdout in graph6 format or planar code depending on the presence of `-d`. If the input graph had a header, so will the output graph.
 
@@ -37,21 +37,21 @@ The order in which the arguments appear does not matter.
                                  triangulated discs; Otherwise behavior 
                                  is unexpected; without -d there may be
                                  false positives
-  -4, --P4-lemma                Check if the input graph satisfies the 
-                                 conditions of Lemma 3; with -d the input
-                                 graphs are assumed to be triangulated 
-                                 discs; Otherwise behavior is unexpected;
-                                 without -d there may be false positives
+  -k#, --Pk-lemma=#             Check if the input graph satisfies the
+                                 conditions of Lemma 3 for connectivity #;
+                                 requires -d and the input graphs as assumed
+                                 to be triangulated discs; Otherwise behavior
+                                 is unexpected
   -c, --count                   Count the number of minimal dominating
                                  sets; The min, max and avg of all input
                                  graphs will be output; cannot be used with 
-                                 -2, -3 or -4
+                                 -2, -3 or -k#
   -d, --triangulated-disc       Read the input graphs in planar code; the 
                                  boundary cycle will be computed; will lead
                                  to unexpected behavior if it is not a 
-                                 triangulated disc and -2, -3 or -4 is used
+                                 triangulated disc and -2, -3 or -k# is used
   -o#, --output=#               Output graphs with domination number #; 
-                                 cannot be used with -2, -3 or -4   
+                                 cannot be used with -2, -3 or -k#   
   -v, --verbose                 Give more detailed output
   -h, --help                    Print this help text
 ```

@@ -5,11 +5,11 @@
  *
  */
 
-#define USAGE "Usage: ./findDominationNumber [-2|-3|-4] [-c] [-d] [-o#] [-v] [-h]"
+#define USAGE "Usage: ./findDominationNumber [-2|-3|-k#] [-c] [-d] [-o#] [-v] [-h]"
 #define HELPTEXT "Helptext:\n\
 By default this program computes the domination number of the input graphs.\n\
 With `-o#` graphs with domination number `#` are output. When using either of\n\
-`-2`, `-3` or `-4` the graphs which satisfy the conditions of Lemma 1, 2 and 3,\n\
+`-2`, `-3` or `-k`# the graphs which satisfy the conditions of Lemma 1, 2 and 3,\n\
 respectively, are output.\n\
 \n\
 Graphs are read from stdin in graph6 format by default or in planar code format\n\
@@ -30,21 +30,21 @@ The order in which the arguments appear does not matter.\n\
                                  triangulated discs; Otherwise behavior\n\
                                  is unexpected; without -d there may be\n\
                                  false positives\n\
-  -4, --P4-lemma                Check if the input graph satisfies the\n\
-                                 conditions of Lemma 3; with -d the input\n\
-                                 graphs are assumed to be triangulated\n\
-                                 discs; Otherwise behavior is unexpected;\n\
-                                 without -d there may be false positives\n\
+  -k#, --Pk-lemma=#             Check if the input graph satisfies the\n\
+                                 conditions of Lemma 3 for connectivity #;\n\
+                                 requires -d and the input graphs as assumed\n\
+                                 to be triangulated discs; Otherwise behavior\n\
+                                 is unexpected\n\
   -c, --count                   Count the number of minimal dominating\n\
                                  sets; The min, max and avg of all input\n\
                                  graphs will be output; cannot be used with\n\
-                                 -2, -3 or -4\n\
+                                 -2, -3 or -k#\n\
   -d, --triangulated-disc       Read the input graphs in planar code; the\n\
                                  boundary cycle will be computed; will lead\n\
                                  to unexpected behavior if it is not a\n\
-                                 triangulated disc and -2, -3 or -4 is used\n\
+                                 triangulated disc and -2, -3 or -k# is used\n\
   -o#, --output=#               Output graphs with domination number #;\n\
-                                 cannot be used with -2, -3 or -4\n\
+                                 cannot be used with -2, -3 or -k#\n\
   -v, --verbose                 Give more detailed output\n\
   -h, --help                    Print this help text\n"
 
@@ -79,7 +79,7 @@ struct options {
     bool deleteK1Flag;
     bool deleteK2Flag;
     bool deleteP3Flag;
-    bool deleteP4Flag;
+    bool deletePkFlag;
     bool triangulatedDiscFlag;
     bool writeHeader;
 };
@@ -438,7 +438,7 @@ bool containsDisjointPaths(struct graph *g, bitset starts, bitset ends) {
         bitset remainingVertices = difference(
          complement(singleton(i), g->numberOfVertices), starts);
         int j = 0;
-        forEach(v, starts) {
+        forEach(v, difference(starts, singleton(i))) {
             struct path *path = malloc(sizeof(struct path));
             path->start = v;
             path->end = i;
@@ -553,31 +553,31 @@ bool P3LemmaHolds(struct graph *g, struct options *options,
     return found;
 }
 
-//  Check if Lemma 3 holds. Warning: If g was not read in planar code we return
-//  true if it holds for any P4 (not necessarily on the boundary.) 
-bool P4LemmaHolds(struct graph *g, struct options *options,
- int dominationNumber) {
+//  Check if Lemma 3 holds. Warning: Always returns false if no outer cycle,
+//  i.e. run with option -d. 
+bool PkLemmaHolds(struct graph *g, struct options *options,
+ int dominationNumber, int k) {
     bool found = false;
 
-    //  Check 4-connectivity. (Plantri cannot output these graphs without some
+    //  Check k-connectivity. (Plantri cannot output these graphs without some
     //  filter.)
-    if(!isKConnected(g->adjacencyList, g->numberOfVertices, EMPTY, 4)) {
+    if(!isKConnected(g->adjacencyList, g->numberOfVertices, EMPTY, k)) {
         if(options->verboseFlag) {
-            fprintf(stderr, "Graph is not 4-connected.\n");
+            fprintf(stderr, "Graph is not %d-connected.\n", k);
         }
         return false;
     }
 
     //  If -d and not a triangulation.
-    if(g->lenOuterCycle > 3) {
+    if(g->lenOuterCycle >= k) {
         for (int i = 0; i < g->lenOuterCycle; i++) {
             bitset excludedVertices = singleton(g->outerCycle[i]);
-            add(excludedVertices, g->outerCycle[(i+1)%g->lenOuterCycle]);
-            add(excludedVertices, g->outerCycle[(i+2)%g->lenOuterCycle]);
-            add(excludedVertices, g->outerCycle[(i+3)%g->lenOuterCycle]);
+            for(int j = 1; j < k; j++) {
+                add(excludedVertices, g->outerCycle[(i+j)%g->lenOuterCycle]);
+            }
 
             //  (i) Check if removal of every subset of the vertices of the
-            //  4-path leaves the same domination number.
+            //  k-path leaves the same domination number.
             if(!removalOfSubsetsGivesSameDominationNumber(g, options,
              excludedVertices, dominationNumber)) {
                 continue;
@@ -585,7 +585,7 @@ bool P4LemmaHolds(struct graph *g, struct options *options,
 
 
             //  (iii) Check if for every vertex x not on the path whether there
-            //  are paths from each vertex on P4 to x such that they are
+            //  are paths from each vertex on Pk to x such that they are
             //  internally disjoint.  
             bitset ends = difference(complement(EMPTY, g->numberOfVertices),
              excludedVertices);
@@ -594,63 +594,32 @@ bool P4LemmaHolds(struct graph *g, struct options *options,
             }
 
 
-            // (iv) Check if for every vertex y on the 4-path, there exist paths
+            // (iv) Check if for every vertex y on the k-path, there exist paths
             // to each of the other vertices which are internally disjoint.
             if(!containsDisjointPaths(g, excludedVertices, excludedVertices)) {
                 continue;
             }
 
             if(options->verboseFlag) {
-                fprintf(stderr, "P4: %d %d %d %d \n",
-                 g->outerCycle[i], 
-                 g->outerCycle[(i+1)%g->lenOuterCycle], 
-                 g->outerCycle[(i+2)%g->lenOuterCycle], 
-                 g->outerCycle[(i+3)%g->lenOuterCycle]);
+                fprintf(stderr, "P%d: %d ", k, g->outerCycle[i]);
+                for (int j = 1; j < k; j++) {
+                    fprintf(stderr, "%d ",
+                     g->outerCycle[(i+j)%g->lenOuterCycle]);
+                }
+                fprintf(stderr, "\n");
             }
             found = true;
         }
         return found;
     }
 
-    if(g->lenOuterCycle == 3) {
+    if(g->lenOuterCycle < k) {
         if(options->verboseFlag) {
-            fprintf(stderr, "Triangulation has no P4 on outer cycle.\n");
+            fprintf(stderr,
+             "Triangulated disc with outer cycle length %d has no P%d on outer cycle.\n",
+             g->lenOuterCycle, k);
         }
         return false;
-    }
-    if(options->verboseFlag) {
-        fprintf(stderr,
-         "No outer cycle found, checking all 4-paths:\n");
-    }
-    for(int v = 0; v < g->numberOfVertices; v++) {
-        forEach(u, g->adjacencyList[v]) {
-            forEach(w, g->adjacencyList[v]) {
-                forEach(x, difference(g->adjacencyList[w], singleton(v))) {
-                    bitset excludedVertices = singleton(u);
-                    add(excludedVertices, v);
-                    add(excludedVertices, w);
-                    add(excludedVertices, x);
-                    if(!removalOfSubsetsGivesSameDominationNumber(g, options,
-                     excludedVertices, dominationNumber)) {
-                        continue;
-                    }
-                    bitset ends = 
-                     difference(complement(EMPTY, g->numberOfVertices), 
-                     excludedVertices);
-                    if(!containsDisjointPaths(g, excludedVertices, ends)) {
-                        continue;
-                    }
-
-                    if(!containsDisjointPaths(g, excludedVertices,
-                     excludedVertices)) {
-                        continue;
-                    }
-                    
-                    fprintf(stderr, "%d %d %d %d \n", u,v,w,x);
-                    found = true;
-                }
-            }
-        }
     }
     return found;
 }
@@ -738,11 +707,12 @@ int readPlanarCode(struct graph *g, struct options *options) {
                 while((character = getc(stdin)) != '<');
                 character = getc(stdin); // Read second time
                 if(character != '<') {
-                    fprintf(stdout, "Problems with header -- single '<'\n");
-                    exit(1);
+                    fprintf(stderr, "Error: Problems with header -- single '<'\n");
+                    return 1;
                 }
                 if(!fread(&character, sizeof(unsigned char), 1, stdin)) {
-                    exit(0);
+                    fprintf(stderr, "Error: Could not read graph in planar code.\n");
+                    return 1;
                 } 
             }
         }
@@ -853,13 +823,14 @@ int main(int argc, char ** argv) {
     options.writeHeader = true;
     int opt;
     int output = -1;
+    int k = -1;
     while (1) {
         int option_index = 0;
         static struct option long_options[] = 
         {
             {"K2-lemma", no_argument, NULL, '2'},
             {"P3-lemma", no_argument, NULL, '3'},
-            {"P4-lemma", no_argument, NULL, '4'},
+            {"Pk-lemma", required_argument, NULL, 'k'},
             {"count", no_argument, NULL, 'c'},
             {"triangulated-disc", no_argument, NULL, 'd'},
             {"help", no_argument, NULL, 'h'},
@@ -867,7 +838,7 @@ int main(int argc, char ** argv) {
             {"verbose", no_argument, NULL, 'v'}
         };
 
-        opt = getopt_long(argc, argv, "234cdho:v", long_options, &option_index);
+        opt = getopt_long(argc, argv, "23k:cdho:v", long_options, &option_index);
         if (opt == -1) break;
         switch(opt) {
             case '2':
@@ -880,8 +851,14 @@ int main(int argc, char ** argv) {
                 fprintf(stderr,
                  "Outputting graphs in which Lemma 2 properties are satisfied.\n");
                 break;
-            case '4':
-                options.deleteP4Flag = true;
+            case 'k':
+                options.deletePkFlag = true;
+                k = (int) strtol(optarg, (char **)NULL, 10);
+                if(k <= 3) {
+                    fprintf(stderr,
+                     "Error: Use options -2 or -3 for lower connectivity.\n");
+                    exit(1);
+                }
                 fprintf(stderr,
                  "Outputting graphs in which Lemma 3 properties are satisfied.\n");
                 break;
@@ -922,14 +899,18 @@ int main(int argc, char ** argv) {
 
     // Check if more than one of these variables is set.
     if(((int)(options.deleteK2Flag ? 1:0) + (int)(options.deleteP3Flag ? 1:0) +
-     (int)(options.deleteP4Flag ? 1:0) + 
+     (int)(options.deletePkFlag ? 1:0) + 
      (int)((output != -1 || options.countFlag) ? 1:0)) >= 2) {
         fprintf(stderr,
          "Error: only select one of -1, -2, -3, -4. Do not combine with -c or -o#.\n");
         exit(1);
     }
+    if(options.deletePkFlag && !options.triangulatedDiscFlag) {
+        fprintf(stderr, "Error: use option -d with -k#\n");
+        exit(1);
+    }
 
-    if((options.deleteK2Flag || options.deleteP3Flag || options.deleteP4Flag) &&
+    if((options.deleteK2Flag || options.deleteP3Flag) &&
      !options.triangulatedDiscFlag) {
         fprintf(stderr,
          "Warning: the search is not restricted to the boundary cycle.");
@@ -989,8 +970,8 @@ int main(int argc, char ** argv) {
                 writeGraph(&g, &options);
             }
         }
-        else if(options.deleteP4Flag) {
-            if(P4LemmaHolds(&g, &options, dominationNumber)) {
+        else if(options.deletePkFlag) {
+            if(PkLemmaHolds(&g, &options, dominationNumber, k)) {
                 passedGraphs++;
                 writeGraph(&g, &options);
             }
