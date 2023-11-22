@@ -391,9 +391,12 @@ bool K2LemmaHolds(struct graph *g, struct options *options,
 bool existPaths(struct graph *g, bitset remainingVertices, struct
 path *pathArray[], int pathArrayLength, int currentPathIdx) {
 
-    //  If last added is neighbour of path, the path is complete.
+    //  If last added is neighbour of path, the path is complete. If last
+    //  added is the end vertex, the path is complete (should only occur when
+    //  start and end vertex are the same, hence the path is a singleton.)
     if(contains(g->adjacencyList[pathArray[currentPathIdx]->lastAdded],
-     pathArray[currentPathIdx]->end)) {
+     pathArray[currentPathIdx]->end) || 
+     equals(pathArray[currentPathIdx]->lastAdded, pathArray[currentPathIdx]->end)) {
 
         //  If not the final path, start building the next one.
         if(currentPathIdx < pathArrayLength - 1) {
@@ -456,6 +459,32 @@ bool containsDisjointPaths(struct graph *g, bitset starts, bitset ends) {
         }
     }
     return true;
+}
+
+// Check if there exist vertex-disjoint paths from arrayOfPairs[2i] to
+// arrayOfPairs[2i+1].
+bool containsDisjointPathsFromPairs(struct graph *g, int arrayOfPairs[], int numberOfPaths) {
+    struct path *pathArray[numberOfPaths];
+    bitset starts = EMPTY;
+    bitset ends = EMPTY;
+    int j = 0;
+    for(int i = 0; i < numberOfPaths; i++) {
+        struct path *path = malloc(sizeof(struct path));
+        path->start = arrayOfPairs[2*i];
+        path->end = arrayOfPairs[2*i+1];
+        path->vertices = union(singleton(arrayOfPairs[2*i]), singleton(arrayOfPairs[2*i+1]));
+        path->lastAdded = arrayOfPairs[2*i];
+        pathArray[j++] = path;
+
+        add(starts, arrayOfPairs[2*i]);
+    }
+    bitset remainingVertices = complement(union(starts, ends), g->numberOfVertices); 
+    bool disjointPathsExist = existPaths(g, remainingVertices, pathArray, numberOfPaths, 0);
+    for(int i = 0; i < numberOfPaths; i++) {
+        free(pathArray[i]);
+    }
+
+    return disjointPathsExist;
 }
 
 //  Check if the domination number of G-X is the same as dominationNumber for
@@ -598,6 +627,21 @@ bool PkLemmaHolds(struct graph *g, struct options *options,
             // to each of the other vertices which are internally disjoint.
             if(!containsDisjointPaths(g, excludedVertices, excludedVertices)) {
                 continue;
+            }
+
+            // (v) Check if there are vertex-disjoint u_iu_{k-i+1}-paths with
+            // u_i the ordered vertices of the k-path.
+            // Only necessary if k > 4, otherwise (iii) => (v)
+            if(k > 4) {
+                int numberOfPaths = k/2 + k%2;
+                int arrayOfPairs[2*numberOfPaths];
+                for(int j = 0; j < numberOfPaths; j++) {
+                    arrayOfPairs[2*j] = g->outerCycle[(i+j)%g->lenOuterCycle];
+                    arrayOfPairs[2*j+1] = g->outerCycle[(i+g->lenOuterCycle - 1 -j)%g->lenOuterCycle];
+                }
+                if(!containsDisjointPathsFromPairs(g, arrayOfPairs, numberOfPaths)) {
+                    continue;
+                }
             }
 
             if(options->verboseFlag) {
