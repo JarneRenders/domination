@@ -954,11 +954,10 @@ int main(int argc, char ** argv) {
         exit(1);
     }
 
-    if((options.deleteK2Flag || options.deleteP3Flag) &&
-     !options.triangulatedDiscFlag) {
+    if((options.deleteK2Flag || options.deleteP3Flag || options.deletePkFlag)) {
         fprintf(stderr,
          "Warning: the search is not restricted to the boundary cycle.");
-        fprintf(stderr, " Can give false positives.\n");
+        fprintf(stderr, " Can give false positives%s.\n", options.triangulatedDiscFlag ? " if output is triangulation": "");
     }
 
     //  Start looping over lines of stdin.
